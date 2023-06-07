@@ -5,8 +5,8 @@ __author__ = 'Will Brennan'
 import logging
 import cv2
 import numpy
-
-import scripts
+import matplotlib.pyplot as plt
+from multiprocessing import Pool
 
 logger = logging.getLogger('main')
 
@@ -24,10 +24,7 @@ def get_hsv_mask(img, debug=False):
     msk_hsv[msk_hsv < 128] = 0
     msk_hsv[msk_hsv >= 128] = 1
 
-    if debug:
-        scripts.display('input', img)
-        scripts.display('mask_hsv', msk_hsv)
-
+    
     return msk_hsv.astype(float)
 
 
@@ -49,17 +46,14 @@ def get_rgb_mask(img, debug=False):
     msk_rgb[msk_rgb < 128] = 0
     msk_rgb[msk_rgb >= 128] = 1
 
-    if debug:
-        scripts.display('input', img)
-        scripts.display('mask_rgb', msk_rgb)
-
+   
     return msk_rgb.astype(float)
 
 
 def get_ycrcb_mask(img, debug=False):
     assert isinstance(img, numpy.ndarray), 'image must be a numpy array'
     assert img.ndim == 3, 'skin detection can only work on color images'
-    logger.debug('getting ycrcb mask')
+    # logger.debug('getting ycrcb mask')
 
     lower_thresh = numpy.array([90, 100, 130], dtype=numpy.uint8)
     upper_thresh = numpy.array([230, 120, 180], dtype=numpy.uint8)
@@ -70,10 +64,7 @@ def get_ycrcb_mask(img, debug=False):
     msk_ycrcb[msk_ycrcb < 128] = 0
     msk_ycrcb[msk_ycrcb >= 128] = 1
 
-    if debug:
-        scripts.display('input', img)
-        scripts.display('mask_ycrcb', msk_ycrcb)
-
+    
     return msk_ycrcb.astype(float)
 
 
@@ -87,10 +78,6 @@ def grab_cut_mask(img_col, mask, debug=False):
     dst = cv2.filter2D(mask, -1, kernel)
     dst[dst != 0] = 255
     free = numpy.array(cv2.bitwise_not(dst), dtype=numpy.uint8)
-
-    if debug:
-        scripts.display('not skin', free)
-        scripts.display('grabcut input', mask)
 
     grab_mask = numpy.zeros(mask.shape, dtype=numpy.uint8)
     grab_mask[:, :] = 2
@@ -128,22 +115,31 @@ def closing(mask):
 def process(img, thresh=0.5, debug=False):
     assert isinstance(img, numpy.ndarray), 'image must be a numpy array'
     assert img.ndim == 3, 'skin detection can only work on color images'
-    logger.debug("processing image of shape {0}".format(img.shape))
+    # logger.debug("processing image of shape {0}".format(img.shape))
+    img = cv2.GaussianBlur(img,(3,3),1.0)
+    # resize image for faster computation
+    img = cv2.resize(img, (512, 256))
 
     mask_hsv = get_hsv_mask(img, debug=debug)
     mask_rgb = get_rgb_mask(img, debug=debug)
     mask_ycrcb = get_ycrcb_mask(img, debug=debug)
-
     n_masks = 3.0
-    mask = (mask_hsv + mask_rgb + mask_ycrcb) / n_masks
+    mask = (mask_hsv + mask_rgb + mask_ycrcb ) / n_masks
 
     mask[mask < thresh] = 0.0
     mask[mask >= thresh] = 255.0
-    logger.debug('{0}% of the image is skin'.format(int((100.0 / 255.0) * numpy.sum(mask) / mask.size)))
 
     mask = mask.astype(numpy.uint8)
 
     mask = closing(mask)
     mask = grab_cut_mask(img, mask, debug=debug)
+    mask[mask > 0] = 1
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    img[mask == 0] = 0
 
-    return mask
+    # nonzero_indices  = numpy.nonzero(img)
+    # min_y, min_x = numpy.min(nonzero_indices , axis=1)
+    # max_y, max_x = numpy.max(nonzero_indices , axis=1)
+    # img =img[min_y:max_y+1, min_x:max_x+1]
+
+    return img
