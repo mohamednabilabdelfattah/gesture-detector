@@ -1,1 +1,12 @@
+<<<<<<< HEAD
 Dataset_0-5-001/
+=======
+data
+Dataset_0-5/
+imgs/
+drive-download-20230517T195747Z-001.zip
+drive-download-20230517T195754Z-001.zip
+results_set_1.txt
+*.rar
+*.zip
+>>>>>>> origin/prepreocessing
